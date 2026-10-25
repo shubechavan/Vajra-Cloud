@@ -1,57 +1,60 @@
 /* ═══════════════════════════════════════════════════════════════
    Vajra Cloud — Global Design System
-   Warm cream/beige/yellow SaaS dashboard palette
+   Monochrome dark theme: Geist type, hairline borders, one accent
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
 
 /* ── CSS Custom Properties ── */
 :root {
-  /* Primary palette — warm creams & yellows */
-  --bg-body: #e8e4dd;
-  --bg-dashboard: #f5f1ea;
-  --bg-card: #ffffff;
-  --bg-card-alt: #faf7f2;
-  --bg-warm: #f9f3e3;
-  --bg-yellow: #f5e6a3;
-  --bg-yellow-light: #fdf6d8;
-  --bg-yellow-muted: #f7efc8;
-  --bg-dark: #2c2c2c;
-  --bg-dark-card: #3a3a3a;
+  color-scheme: dark;
 
-  /* Accent */
-  --accent-yellow: #e8c840;
-  --accent-gold: #d4a828;
-  --accent-warm: #c9a84c;
-  --accent-green: #4caf50;
-  --accent-green-light: #e8f5e9;
-  --accent-red: #ef5350;
-  --accent-red-light: #ffebee;
-  --accent-blue: #5b9bd5;
-  --accent-blue-light: #e3f2fd;
-  --accent-orange: #ff9800;
-  --accent-orange-light: #fff3e0;
+  /* Surfaces (token names kept from the original palette) */
+  --bg-body: #000000;
+  --bg-dashboard: #000000;
+  --bg-card: #0a0a0a;
+  --bg-card-alt: #111111;
+  --bg-warm: #1a1a1a;            /* hover surface */
+  --bg-yellow: #1f1f1f;
+  --bg-yellow-light: #1a1a1a;
+  --bg-yellow-muted: #2e2e2e;
+  --bg-dark: #0a0a0a;
+  --bg-dark-card: #1a1a1a;
+
+  /* Accent — foreground is the primary accent, blue for highlights */
+  --accent-yellow: #ededed;
+  --accent-gold: #ededed;
+  --accent-warm: #a1a1a1;
+  --accent-green: #45c46b;
+  --accent-green-light: rgba(69, 196, 107, 0.12);
+  --accent-red: #ff4d55;
+  --accent-red-light: rgba(255, 77, 85, 0.12);
+  --accent-blue: #3291ff;
+  --accent-blue-light: rgba(50, 145, 255, 0.12);
+  --accent-orange: #f5a623;
+  --accent-orange-light: rgba(245, 166, 35, 0.12);
 
   /* Text */
-  --text-primary: #1a1a1a;
-  --text-secondary: #5a5a5a;
-  --text-muted: #8a8a8a;
-  --text-light: #ffffff;
-  --text-dark-card: #e0e0e0;
+  --text-primary: #ededed;
+  --text-secondary: #a1a1a1;
+  --text-muted: #737373;
+  --text-light: #ededed;
+  --text-dark-card: #a1a1a1;
 
-  /* Borders & shadows */
-  --border-light: #e8e4de;
-  --border-card: #f0ece4;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+  /* Borders & shadows — hairlines instead of shadows */
+  --border-light: #262626;
+  --border-card: #1f1f1f;
+  --border-strong: #3d3d3d;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-card: none;
 
   /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
   --radius-full: 50%;
 
   /* Spacing */
@@ -63,7 +66,8 @@
   --space-2xl: 48px;
 
   /* Typography */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-xs: 0.7rem;
   --font-sm: 0.8rem;
   --font-base: 0.9rem;
@@ -104,10 +108,6 @@ body {
 
 #root {
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: var(--space-lg);
 }
 
 a {

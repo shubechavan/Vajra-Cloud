@@ -688,7 +688,7 @@
 .instance-port {
   font-size: var(--font-xs);
   color: var(--text-muted);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .instance-health-tag {
@@ -1638,7 +1638,7 @@
 .page-table-name {
   font-weight: 600;
   color: var(--text-primary);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .page-table-time {
@@ -1866,7 +1866,7 @@
 
 .test-result-response {
   font-size: var(--font-xs);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 /* ── Responsive ── */
@@ -1882,4 +1882,234 @@
   .page-header-row {
     flex-direction: column;
   }
+}
+
+/* ── Stress Test Section ── */
+.stress-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: var(--space-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.stress-section.running {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 3px var(--accent-red-light);
+}
+
+.stress-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-xs);
+  color: var(--accent-red);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.stress-timer {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stress-presets {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.scaling-btn.stress-preset {
+  flex-direction: column;
+  gap: 1px;
+  background: var(--bg-card-alt);
+  color: var(--text-primary);
+}
+
+.stress-preset-sub {
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.scaling-btn.stress-preset.light:hover:not(:disabled)  { border-color: var(--accent-green);  background: var(--accent-green-light); }
+.scaling-btn.stress-preset.medium:hover:not(:disabled) { border-color: var(--accent-orange); background: var(--accent-orange-light); }
+.scaling-btn.stress-preset.heavy:hover:not(:disabled)  { border-color: var(--accent-red);    background: var(--accent-red-light); }
+
+.stress-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stress-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px;
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+}
+
+.stress-stat strong {
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stress-stat strong.bad {
+  color: var(--accent-red);
+}
+
+.stress-stat span {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+.stress-progress {
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.stress-progress-fill {
+  height: 100%;
+  background: var(--accent-red);
+  transition: width 1s linear;
+}
+
+.scaling-btn.stress-stop {
+  width: 100%;
+  background: var(--accent-red);
+  color: white;
+  border-color: var(--accent-red);
+}
+
+.stress-route {
+  margin-top: 6px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.metric-change.neutral {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ── Traffic chart legend ── */
+.chart-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+.chart-legend-dot.rpm { background: var(--accent-yellow); }
+.chart-legend-dot.cpu { background: var(--accent-blue); }
+
+/* ── Live Topology ── */
+.topology-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-badge.stress {
+  background: var(--accent-red-light);
+  color: var(--accent-red);
+}
+
+.topology-svg {
+  width: 100%;
+  height: auto;
+  flex: 1;
+  min-height: 220px;
+}
+
+.topo-link {
+  stroke: var(--border-light);
+  stroke-linecap: round;
+  transition: stroke-width 0.6s ease;
+}
+
+.topo-link.flowing {
+  stroke: var(--accent-yellow);
+  stroke-dasharray: 6 8;
+  animation: topo-flow 0.8s linear infinite;
+}
+
+@keyframes topo-flow {
+  to { stroke-dashoffset: -14; }
+}
+
+.topo-node.client {
+  fill: var(--bg-yellow-light);
+  stroke: var(--accent-gold);
+  stroke-width: 1.5;
+}
+
+.topo-node.lb {
+  fill: var(--bg-dark);
+}
+
+.topo-node.worker {
+  fill: var(--bg-card);
+  stroke-width: 1.5;
+  transition: stroke 0.4s ease;
+}
+
+.topo-worker {
+  animation: topo-appear 0.5s ease-out;
+}
+
+@keyframes topo-appear {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.topo-label {
+  font-size: 9px;
+  fill: var(--text-muted);
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.topo-label.strong {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text-primary);
+}
+
+.topo-label.light { fill: var(--text-dark-card); }
+.topo-label.strong.light { fill: var(--text-light); }
+.topo-label.left { text-anchor: start; }
+
+.topology-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.topology-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.topology-legend-note {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topo-link.flowing, .topo-worker { animation: none; }
 }

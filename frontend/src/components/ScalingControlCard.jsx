@@ -6,6 +6,8 @@ import {
   Minus,
   Cpu,
   AlertTriangle,
+  Flame,
+  Square,
 } from 'lucide-react';
 import {
   enableScaling,
@@ -13,7 +15,15 @@ import {
   triggerScaleOut,
   triggerScaleIn,
   setTestCpu,
+  startStressTest,
+  stopStressTest,
 } from '../services/api';
+
+const CPU_SOURCE_LABEL = {
+  'fleet-avg': 'Avg Worker CPU',
+  'os.cpus()': 'Host CPU',
+  'test-override': 'CPU',
+};
 
 /**
  * ScalingControlCard — the main Stage 4 UI component.
@@ -22,6 +32,7 @@ import {
  *  - Engine on/off toggle
  *  - Live CPU + worker count
  *  - Manual scale out / scale in buttons
+ *  - Stress test: real CPU-bound traffic against the workers
  *  - Test CPU override slider for demos
  *  - Cooldown status and thresholds
  */
@@ -61,7 +72,17 @@ export default function ScalingControlCard({ scaling, onRefresh }) {
     lowCpuCount,
     testMode,
     testCpuValue,
+    stress,
+    nginx,
   } = scaling;
+
+  const live = stress?.current;
+  const secondsLeft = live
+    ? Math.max(0, Math.ceil((Date.parse(live.endsAt) - Date.now()) / 1000))
+    : 0;
+  const route = nginx?.reachable && nginx?.configDir
+    ? `via NGINX :${nginx.port}`
+    : 'direct round-robin across workers';
 
   // Generic action handler
   const doAction = async (fn, label) => {
@@ -146,7 +167,7 @@ export default function ScalingControlCard({ scaling, onRefresh }) {
             {cpuUtilization}%
           </div>
           <div className="scaling-gauge-label">
-            CPU
+            {CPU_SOURCE_LABEL[cpuSource] || 'CPU'}
             {testMode && <span className="test-badge">TEST</span>}
           </div>
           <div className="scaling-gauge-sub">
@@ -193,6 +214,75 @@ export default function ScalingControlCard({ scaling, onRefresh }) {
           <Minus size={14} />
           Scale In
         </button>
+      </div>
+
+      {/* Stress test — real load */}
+      <div className={`stress-section${live ? ' running' : ''}`}>
+        <div className="stress-header">
+          <Flame size={13} />
+          <span>Stress Test — real CPU load</span>
+          {live && <span className="stress-timer">{secondsLeft}s left</span>}
+        </div>
+
+        {live ? (
+          <>
+            <div className="stress-stats">
+              <div className="stress-stat">
+                <strong>{live.achievedRps}</strong>
+                <span>req/s</span>
+              </div>
+              <div className="stress-stat">
+                <strong>{live.avgLatencyMs ?? '—'}</strong>
+                <span>avg ms</span>
+              </div>
+              <div className="stress-stat">
+                <strong>{live.p95LatencyMs ?? '—'}</strong>
+                <span>p95 ms</span>
+              </div>
+              <div className="stress-stat">
+                <strong className={live.dropped > 0 ? 'bad' : ''}>{live.dropped}</strong>
+                <span>dropped</span>
+              </div>
+            </div>
+            <div className="stress-progress">
+              <div
+                className="stress-progress-fill"
+                style={{ width: `${100 - (secondsLeft / live.durationSec) * 100}%` }}
+              />
+            </div>
+            <button
+              className="scaling-btn stress-stop"
+              onClick={() => doAction(stopStressTest, 'Stress test stopped')}
+              disabled={isBusy}
+            >
+              <Square size={12} />
+              Stop {live.label} test
+            </button>
+          </>
+        ) : (
+          <div className="stress-presets">
+            {Object.entries(stress?.presets || {}).map(([key, p]) => (
+              <button
+                key={key}
+                className={`scaling-btn stress-preset ${key}`}
+                onClick={() => doAction(() => startStressTest(key), `${p.label} test started`)}
+                disabled={isBusy || activeWorkers === 0}
+                title={`${p.rps} req/s × ${p.workMs}ms of CPU work each`}
+              >
+                {p.label}
+                <span className="stress-preset-sub">
+                  ≈{((p.rps * p.workMs) / 1000).toFixed(1)} cores
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="stress-route">
+          {activeWorkers === 0
+            ? 'Enable the engine to start workers first'
+            : `Traffic routed ${route}`}
+        </div>
       </div>
 
       {/* Test CPU override */}

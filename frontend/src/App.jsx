@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import './App.css';
+import './theme.css';
 
 import Navbar from './components/Navbar';
 import WelcomeSection from './components/WelcomeSection';
 import MetricsRow from './components/MetricsRow';
-import VideoCard from './components/VideoCard';
+import TopologyCard from './components/TopologyCard';
 import TrafficChart from './components/TrafficChart';
 import ActivityCard from './components/ActivityCard';
 import ServerInstancesCard from './components/ServerInstancesCard';
@@ -33,17 +34,20 @@ const FALLBACK_METRICS = {
   activeInstances: 0,
   cpuUtilization: 0,
   requestsPerMinute: 0,
-  avgResponseTime: 0,
+  avgResponseTime: null,
+  memoryPercent: 0,
+  minInstances: 0,
+  maxInstances: 0,
   metricsSource: 'offline',
 };
 
-const FALLBACK_TRAFFIC = [
-  { time: '06:00', rpm: 0 }, { time: '07:00', rpm: 0 },
-  { time: '08:00', rpm: 0 }, { time: '09:00', rpm: 0 },
-  { time: '10:00', rpm: 0 }, { time: '11:00', rpm: 0 },
-  { time: '12:00', rpm: 0 }, { time: '13:00', rpm: 0 },
-  { time: '14:00', rpm: 0 },
-];
+const FALLBACK_TRAFFIC = [];
+
+const CPU_SOURCE_SUB = {
+  'fleet-avg': 'average across workers',
+  'os.cpus()': 'host CPU (no worker data)',
+  'test-override': 'TEST OVERRIDE — not real',
+};
 
 /**
  * Convert raw API metrics into the card format MetricsRow expects.
@@ -64,7 +68,7 @@ function formatMetrics(raw) {
       value: String(raw.activeInstances),
       icon: 'server',
       color: 'blue',
-      trend: 0,
+      sub: `scaling range ${raw.minInstances}–${raw.maxInstances}`,
       tooltip: `Running worker processes ${srcLabel}`,
     },
     {
@@ -73,8 +77,8 @@ function formatMetrics(raw) {
       value: `${raw.cpuUtilization}%`,
       icon: 'cpu',
       color: raw.cpuUtilization > 70 ? 'orange' : 'green',
-      trend: 0,
-      tooltip: `System CPU usage ${srcLabel}`,
+      sub: CPU_SOURCE_SUB[raw.cpuSource] || 'measured',
+      tooltip: `CPU used for scaling decisions ${srcLabel}`,
     },
     {
       id: 'rpm',
@@ -82,26 +86,40 @@ function formatMetrics(raw) {
       value: raw.requestsPerMinute.toLocaleString(),
       icon: 'activity',
       color: 'yellow',
-      trend: Math.floor(Math.random() * 12) + 1,
-      tooltip: `Estimated incoming RPM ${srcLabel}`,
+      sub: raw.loadTestRunning ? 'stress test running' : 'measured at workers',
+      tooltip: `Requests served by all workers ${srcLabel}`,
     },
     {
       id: 'latency',
       label: 'Avg Response Time',
-      value: `${raw.avgResponseTime} ms`,
+      value: raw.avgResponseTime === null ? '—' : `${raw.avgResponseTime} ms`,
       icon: 'clock',
       color: 'orange',
-      trend: Math.floor(Math.random() * 6) - 4,
+      sub: raw.loadTestRunning ? 'client-side, incl. queueing' : 'server processing time',
       tooltip: `Mean response latency ${srcLabel}`,
     },
   ];
 }
 
 // ── Polling interval in ms ──
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 2000;
 
 export default function App() {
-  const [activePage, setActivePage] = useState('dashboard');
+  // Keep the open tab in the URL hash so refreshes and links land on it
+  const [activePage, setActivePage] = useState(
+    () => window.location.hash.slice(1) || 'dashboard'
+  );
+
+  useEffect(() => {
+    const onHash = () => setActivePage(window.location.hash.slice(1) || 'dashboard');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const navigate = useCallback((page) => {
+    window.location.hash = page === 'dashboard' ? '' : page;
+    setActivePage(page);
+  }, []);
 
   // Data from backend
   const [rawMetrics, setRawMetrics] = useState(FALLBACK_METRICS);
@@ -173,7 +191,7 @@ export default function App() {
 
   return (
     <div className="dashboard-shell">
-      <Navbar activePage={activePage} onNavigate={setActivePage} />
+      <Navbar activePage={activePage} onNavigate={navigate} isConnected={isConnected} />
       <ConnectionBanner isConnected={isConnected} metricsSource={metricsSource} />
 
       {activePage === 'dashboard' ? (
@@ -183,13 +201,26 @@ export default function App() {
             isRefreshing={isRefreshing}
             isConnected={isConnected}
             metricsSource={metricsSource}
+            scalingEnabled={scaling?.enabled}
+            stressRunning={scaling?.stress?.running}
           />
           <MetricsRow metrics={metrics} isLoading={isLoading} />
 
-          {/* Middle grid: Video | Traffic Chart | Activity */}
+          {/* Middle grid: Topology | Traffic Chart | Activity */}
           <div className="main-grid">
-            <VideoCard />
-            <TrafficChart data={trafficData} cpuPercent={cpuValue} />
+            <TopologyCard
+              instances={instances}
+              totalRpm={rawMetrics.requestsPerMinute}
+              nginx={scaling?.nginx}
+              stressRunning={scaling?.stress?.running}
+            />
+            <TrafficChart
+              data={trafficData}
+              cpuPercent={cpuValue}
+              memoryPercent={rawMetrics.memoryPercent}
+              workers={rawMetrics.activeInstances}
+              maxWorkers={rawMetrics.maxInstances}
+            />
             <ActivityCard events={events} />
           </div>
 

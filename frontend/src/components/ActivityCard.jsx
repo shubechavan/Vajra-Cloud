@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Settings,
   Power,
+  Flame,
 } from 'lucide-react';
 
 /**
@@ -21,6 +22,7 @@ const EVENT_STYLES = {
   info:          { icon: GitBranch, dot: 'blue' },
   warning:       { icon: AlertTriangle, dot: 'orange' },
   error:         { icon: Zap, dot: 'red' },
+  load_test:     { icon: Flame, dot: 'orange' },
 };
 
 const DEFAULT_STYLE = { icon: Zap, dot: 'yellow' };
@@ -67,7 +69,7 @@ export default function ActivityCard({ events = [] }) {
       {total === 0 ? (
         <div className="timeline-empty">
           <p>No events recorded yet.</p>
-          <p style={{ fontSize: '0.7rem', color: '#8a8a8a' }}>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
             Events will appear when the backend logs activity.
           </p>
         </div>

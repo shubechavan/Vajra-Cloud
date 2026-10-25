@@ -1,0 +1,16 @@
+{
+  "name": "Vajra Cloud",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "hostRequirements": {
+    "cpus": 2
+  },
+  "postCreateCommand": "npm run install:all && npm --prefix frontend run build",
+  "postStartCommand": "bash scripts/codespace-start.sh",
+  "forwardPorts": [4000],
+  "portsAttributes": {
+    "4000": {
+      "label": "Vajra Cloud",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}

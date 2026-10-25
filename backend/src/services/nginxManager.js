@@ -28,7 +28,6 @@ const NGINX_SEARCH_PATHS = [
   'C:\\Program Files\\nginx\\nginx.exe',
   'C:\\nginx-1.27.4\\nginx.exe',
   'C:\\nginx-1.30.6\\nginx.exe',
-  'D:\\SEMESTER 3\\Cloud Computing\\nginx-1.30.6\\nginx.exe',
 ].filter(Boolean);
 
 // ── State ──

@@ -1,5 +1,17 @@
 {
+  "name": "vajra-cloud",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "dev": "concurrently -k -n backend,frontend -c yellow,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "load-test": "node test-load.js",
+    "start": "node backend/src/server.js",
+    "codespace": "bash scripts/codespace-start.sh"
+  },
   "dependencies": {
     "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.5"
   }
 }

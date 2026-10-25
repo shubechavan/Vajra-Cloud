@@ -26,6 +26,10 @@ router.get('/', (req, res) => {
       status: w.status === 'running' ? 'healthy' : w.status,
       pid: w.pid,
       requestCount: w.requestCount || 0,
+      rpm: w.rpm || 0,
+      cpuPercent: w.cpuPercent,
+      avgLatencyMs: w.avgLatencyMs,
+      memoryMb: w.memoryMb,
       startedAt: w.startedAt,
     }));
 

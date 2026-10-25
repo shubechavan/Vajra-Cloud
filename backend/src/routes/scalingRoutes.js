@@ -9,6 +9,8 @@
 // POST /api/scaling/scale-out  — manual scale out
 // POST /api/scaling/scale-in   — manual scale in
 // POST /api/scaling/test-cpu   — set test CPU override
+// POST /api/scaling/stress      — start a real stress test
+// POST /api/scaling/stress/stop — stop the stress test
 // ═══════════════════════════════════════════════════════════════
 
 import { Router } from 'express';
@@ -22,6 +24,7 @@ import {
   setTestCpu,
 } from '../services/scalingEngine.js';
 import { isNginxAvailable, getNginxStatus, checkNginxHealth } from '../services/nginxManager.js';
+import { startLoadTest, stopLoadTest, getLoadStatus } from '../services/loadGenerator.js';
 
 const router = Router();
 
@@ -45,6 +48,7 @@ router.get('/', async (req, res) => {
         ...status,
         workers,
         nginx,
+        stress: getLoadStatus(),
       },
     });
   } catch (err) {
@@ -131,6 +135,37 @@ router.post('/test-cpu', (req, res) => {
     res.status(statusCode).json(result);
   } catch (err) {
     console.error('[Scaling API] Test CPU error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/scaling/stress
+ * Body: { preset: 'light'|'medium'|'heavy', durationSec?: number }
+ *
+ * Sends REAL CPU-bound requests to the workers so the engine
+ * scales on genuine load.
+ */
+router.post('/stress', (req, res) => {
+  try {
+    const { preset, durationSec } = req.body || {};
+    const result = startLoadTest(preset, durationSec);
+    res.status(result.success ? 200 : 409).json(result);
+  } catch (err) {
+    console.error('[Scaling API] Stress start error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/scaling/stress/stop
+ */
+router.post('/stress/stop', (req, res) => {
+  try {
+    const result = stopLoadTest();
+    res.status(result.success ? 200 : 409).json(result);
+  } catch (err) {
+    console.error('[Scaling API] Stress stop error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

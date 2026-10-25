@@ -1,38 +1,27 @@
 // ═══════════════════════════════════════════════════════════════
 // Vajra Cloud — Metrics Service (Updated for Stage 4)
 //
-// Now returns REAL data from the scaling engine:
-//   • CPU utilisation from os.cpus() (or test override)
+// Returns REAL data only:
+//   • CPU utilisation: average worker CPU (or host / test override)
+//   • RPM + latency measured by the traffic monitor
 //   • Active worker count from the actual process registry
 //   • Settings from SQLite
 // ═══════════════════════════════════════════════════════════════
 
 import db from '../database/database.js';
 import { getEngineStatus, getActiveWorkerCount } from '../services/scalingEngine.js';
-
-/**
- * Helper: random integer in [min, max]
- * Still used for demo traffic data and latency estimation.
- */
-function rand(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+import { getCurrentTraffic, getTrafficHistory } from '../services/trafficMonitor.js';
+import { getLoadStatus } from '../services/loadGenerator.js';
 
 /**
  * Build the metrics payload.
- * Uses real CPU + worker data from the scaling engine.
+ * Every number here is measured — see trafficMonitor.js.
  */
 export function getMetrics() {
   const settings = db.get('SELECT * FROM settings WHERE id = 1');
   const engineStatus = getEngineStatus();
   const activeInstances = getActiveWorkerCount();
-
-  // Real CPU from the scaling engine
-  const cpuUtilization = engineStatus.cpuUtilization;
-
-  // RPM and latency are still estimated (real measurement needs Stage 5+)
-  const requestsPerMinute = rand(800, 1500);
-  const avgResponseTime = rand(60, 110);
+  const traffic = getCurrentTraffic();
 
   // Determine the data source label
   let metricsSource = 'live';
@@ -43,31 +32,21 @@ export function getMetrics() {
     activeInstances,
     minInstances: settings.min_instances,
     maxInstances: settings.max_instances,
-    cpuUtilization,
+    cpuUtilization: engineStatus.cpuUtilization,
     cpuSource: engineStatus.cpuSource,
-    requestsPerMinute,
-    avgResponseTime,
+    memoryPercent: traffic.memoryPercent,
+    requestsPerMinute: traffic.rpm,
+    avgResponseTime: traffic.latencyMs,
     metricsSource,
     scalingEnabled: engineStatus.enabled,
+    loadTestRunning: getLoadStatus().running,
     lastUpdated: new Date().toISOString(),
   };
 }
 
 /**
- * Generate traffic chart data points.
- * RPM values are still estimated for now.
+ * Rolling traffic history (one point per monitor tick).
  */
 export function getTrafficData() {
-  const now = new Date();
-  const points = [];
-  for (let i = 8; i >= 0; i--) {
-    const t = new Date(now.getTime() - i * 60 * 60 * 1000);
-    const hh = t.getHours().toString().padStart(2, '0');
-    const mm = t.getMinutes().toString().padStart(2, '0');
-    points.push({
-      time: `${hh}:${mm}`,
-      rpm: rand(600, 1400),
-    });
-  }
-  return points;
+  return getTrafficHistory();
 }

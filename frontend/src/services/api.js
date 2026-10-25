@@ -4,8 +4,9 @@
 // Base URL comes from VITE_API_BASE_URL environment variable.
 // ═══════════════════════════════════════════════════════════════
 
-// Default to localhost:4000 if env var is not set
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+// Same-origin by default: the backend serves the dashboard in production,
+// and Vite proxies /api to the backend in development
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**
  * Generic fetch wrapper with error handling.
@@ -115,4 +116,15 @@ export function setTestCpu(value) {
     method: 'POST',
     body: JSON.stringify({ value }),
   });
+}
+
+export function startStressTest(preset, durationSec = 120) {
+  return request('/scaling/stress', {
+    method: 'POST',
+    body: JSON.stringify({ preset, durationSec }),
+  });
+}
+
+export function stopStressTest() {
+  return request('/scaling/stress/stop', { method: 'POST' });
 }

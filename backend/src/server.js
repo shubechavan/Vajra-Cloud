@@ -7,6 +7,9 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Database initializer
 import db, { initDatabase } from './database/database.js';
@@ -21,6 +24,11 @@ import scalingRoutes from './routes/scalingRoutes.js';
 
 // Import scaling engine so it initialises (CPU snapshot, cleanup handlers)
 import scalingEngine from './services/scalingEngine.js';
+import { startTrafficMonitor } from './services/trafficMonitor.js';
+
+// Built dashboard (frontend/dist) — served by this server in production
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FRONTEND_DIST = path.join(__dirname, '..', '..', 'frontend', 'dist');
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 4000;
@@ -44,17 +52,27 @@ const allowedOrigins = [
 
 app.use(express.json());
 
-app.use(cors({
-  origin(origin, callback) {
-    // Allow requests without an Origin header (e.g. PowerShell/cURL).
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+app.use(cors((req, callback) => {
+  const origin = req.headers.origin;
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
 
-    return callback(new Error(`CORS blocked origin: ${origin}`));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Allow requests without an Origin header (e.g. PowerShell/cURL),
+  // configured origins, and the dashboard served by this same server.
+  const sameOrigin = origin && host && new URL(origin).host === host;
+
+  // GitHub Codespaces forwards ports through *.app.github.dev
+  const codespaceDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+  const fromCodespace = origin && codespaceDomain && new URL(origin).host.endsWith(`.${codespaceDomain}`);
+
+  if (!origin || sameOrigin || fromCodespace || allowedOrigins.includes(origin)) {
+    return callback(null, {
+      origin: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+  }
+
+  return callback(new Error(`CORS blocked origin: ${origin}`));
 }));
 
 // Request logger
@@ -79,6 +97,18 @@ app.use('/api/instances', instanceRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/scaling', scalingRoutes);
+
+// ── Dashboard (production build) ──
+
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+
+  // Any non-API GET returns the single-page app
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
 
 // ── 404 fallback ──
 
@@ -122,7 +152,17 @@ async function start() {
       console.log(`  Port:    ${PORT}`);
       console.log(`  CORS:    ${allowedOrigins.join(', ')}`);
       console.log(`  Health:  http://localhost:${PORT}/api/health`);
+      if (fs.existsSync(FRONTEND_DIST)) {
+        console.log(`  UI:      http://localhost:${PORT}/`);
+      }
       console.log('');
+
+      startTrafficMonitor();
+
+      // Hosted demos start with the engine on so visitors see live workers
+      if (process.env.AUTO_ENABLE_SCALING === 'true') {
+        scalingEngine.enableEngine();
+      }
 
       // Record startup event
       try {

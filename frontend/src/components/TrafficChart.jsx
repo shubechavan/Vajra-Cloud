@@ -1,24 +1,51 @@
 import { ArrowUpRight } from 'lucide-react';
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts';
 
-export default function TrafficChart({ data, cpuPercent = 42 }) {
-  const memPercent = Math.min(99, cpuPercent + Math.floor(Math.random() * 25));
-  const netPercent = Math.max(5, cpuPercent - Math.floor(Math.random() * 20));
+/**
+ * Find the points where the worker count changed, so the chart can
+ * mark each scale-out / scale-in next to the load that caused it.
+ */
+function getScaleMarkers(data) {
+  const markers = [];
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1].workers;
+    const curr = data[i].workers;
+    if (prev !== undefined && curr !== prev) {
+      markers.push({ time: data[i].time, up: curr > prev, workers: curr });
+    }
+  }
+  return markers;
+}
+
+export default function TrafficChart({
+  data = [],
+  cpuPercent = 0,
+  memoryPercent = 0,
+  workers = 0,
+  maxWorkers = 0,
+}) {
+  const markers = getScaleMarkers(data);
+  const poolPercent = maxWorkers > 0 ? Math.round((workers / maxWorkers) * 100) : 0;
 
   return (
     <div className="chart-card">
       <div className="chart-card-header">
         <div>
           <div className="chart-card-title">Traffic Overview</div>
-          <div className="chart-big-label">Requests per minute (from backend)</div>
+          <div className="chart-big-label">
+            Live RPM <span className="chart-legend-dot rpm" /> vs CPU{' '}
+            <span className="chart-legend-dot cpu" /> · last 3 min
+          </div>
         </div>
         <button
           className="chart-card-action"
@@ -30,46 +57,90 @@ export default function TrafficChart({ data, cpuPercent = 42 }) {
       </div>
 
       <div className="traffic-chart-wrap">
-        <ResponsiveContainer width="100%" height={180}>
-          <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+        <ResponsiveContainer width="100%" height={250}>
+          <ComposedChart data={data} margin={{ top: 14, right: -10, bottom: 0, left: -20 }}>
             <defs>
               <linearGradient id="trafficGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#e8c840" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#e8c840" stopOpacity={0} />
+                <stop offset="5%" stopColor="#3291ff" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#3291ff" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
             <XAxis
               dataKey="time"
-              tick={{ fontSize: 10, fill: '#8a8a8a' }}
+              tick={{ fontSize: 10, fill: '#737373' }}
+              axisLine={false}
+              tickLine={false}
+              minTickGap={40}
+            />
+            <YAxis
+              yAxisId="rpm"
+              tick={{ fontSize: 10, fill: '#737373' }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: '#8a8a8a' }}
+              yAxisId="cpu"
+              orientation="right"
+              domain={[0, 100]}
+              tick={{ fontSize: 10, fill: '#737373' }}
+              tickFormatter={(v) => `${v}%`}
               axisLine={false}
               tickLine={false}
             />
             <Tooltip
               contentStyle={{
-                background: '#2c2c2c',
-                border: 'none',
+                background: '#0a0a0a',
+                border: '1px solid #262626',
                 borderRadius: 8,
                 color: '#fff',
                 fontSize: 12,
               }}
-              labelStyle={{ color: '#8a8a8a', fontSize: 10 }}
+              labelStyle={{ color: '#737373', fontSize: 10 }}
+              formatter={(value, name) =>
+                name === 'cpu' ? [`${value}%`, 'CPU'] :
+                name === 'rpm' ? [value.toLocaleString(), 'Requests/min'] :
+                [value, 'Workers']
+              }
             />
+            {markers.map((m) => (
+              <ReferenceLine
+                key={m.time}
+                x={m.time}
+                yAxisId="rpm"
+                stroke={m.up ? '#45c46b' : '#f5a623'}
+                strokeDasharray="4 3"
+                label={{
+                  value: `${m.up ? '▲' : '▼'} ${m.workers}`,
+                  position: 'top',
+                  fontSize: 10,
+                  fill: m.up ? '#45c46b' : '#f5a623',
+                }}
+              />
+            ))}
             <Area
+              yAxisId="rpm"
               type="monotone"
               dataKey="rpm"
-              stroke="#e8c840"
+              stroke="#3291ff"
               strokeWidth={2}
               fill="url(#trafficGrad)"
               dot={false}
-              activeDot={{ r: 4, fill: '#e8c840' }}
+              isAnimationActive={false}
+              activeDot={{ r: 4, fill: '#3291ff' }}
             />
-          </AreaChart>
+            <Line
+              yAxisId="cpu"
+              type="monotone"
+              dataKey="cpu"
+              stroke="#ededed"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line dataKey="workers" yAxisId="rpm" hide />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
@@ -83,18 +154,18 @@ export default function TrafficChart({ data, cpuPercent = 42 }) {
           <div className="progress-bar-label">CPU</div>
         </div>
         <div className="progress-bar-col">
-          <div className="progress-bar-value">{memPercent}%</div>
+          <div className="progress-bar-value">{memoryPercent}%</div>
           <div className="progress-bar-track">
-            <div className="progress-bar-fill green" style={{ width: `${memPercent}%` }} />
+            <div className="progress-bar-fill green" style={{ width: `${memoryPercent}%` }} />
           </div>
-          <div className="progress-bar-label">Memory</div>
+          <div className="progress-bar-label">Host Memory</div>
         </div>
         <div className="progress-bar-col">
-          <div className="progress-bar-value">{netPercent}%</div>
+          <div className="progress-bar-value">{workers}/{maxWorkers}</div>
           <div className="progress-bar-track">
-            <div className="progress-bar-fill blue" style={{ width: `${netPercent}%` }} />
+            <div className="progress-bar-fill blue" style={{ width: `${poolPercent}%` }} />
           </div>
-          <div className="progress-bar-label">Network</div>
+          <div className="progress-bar-label">Worker Pool</div>
         </div>
       </div>
     </div>

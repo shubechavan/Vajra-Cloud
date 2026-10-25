@@ -5,7 +5,8 @@
 // processes up or down based on configurable thresholds.
 //
 // Key design choices (beginner-friendly):
-//   • Uses Node.js os.cpus() for real system CPU measurement
+//   • Scales on AVERAGE WORKER CPU (like AWS ASG target tracking),
+//     falling back to host CPU from os.cpus() when no worker data exists
 //   • Spawns workers via child_process.spawn
 //   • Hysteresis: requires CONSECUTIVE readings before acting
 //   • Cooldown: prevents rapid repeated scaling
@@ -34,7 +35,7 @@ const CONFIG = {
   monitorInterval: parseInt(process.env.SCALING_INTERVAL) || 5000,   // ms between checks
   cooldownMs:      parseInt(process.env.SCALING_COOLDOWN) || 15000,  // ms after a scaling action
   consecutiveHits: parseInt(process.env.SCALING_HITS)     || 3,      // readings needed to trigger
-  basePorts:       [3001, 3002, 3003, 3004, 3005],                    // available worker ports
+  basePorts:       [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010], // available worker ports
 };
 
 // ── Engine State ──
@@ -47,6 +48,7 @@ let lowCpuCount     = 0;       // consecutive readings BELOW scaleIn threshold
 let lastCpuSnapshot = null;    // previous os.cpus() snapshot for delta calc
 let lastMeasuredCpu = 0;       // last computed CPU % (for API display)
 let testCpuOverride = null;    // if set, use this value instead of real CPU (test mode)
+let cpuSource       = 'os.cpus()'; // where the last CPU reading came from
 
 // Worker registry: Map<instanceId, { process, port, instanceId, status, startedAt, requestCount }>
 const workers = new Map();
@@ -88,17 +90,49 @@ function calculateCpu(prev, curr) {
 }
 
 /**
- * Get the current CPU utilisation %.
- * If test mode is active, returns the test override value.
+ * Measure host-wide CPU % since the previous snapshot.
  */
-function getCurrentCpu() {
-  if (testCpuOverride !== null) return testCpuOverride;
-
+export function sampleHostCpu() {
   const current = cpuSnapshot();
-  if (lastCpuSnapshot) {
-    lastMeasuredCpu = calculateCpu(lastCpuSnapshot, current);
-  }
+  const value = lastCpuSnapshot ? calculateCpu(lastCpuSnapshot, current) : 0;
   lastCpuSnapshot = current;
+  return value;
+}
+
+/**
+ * Average CPU % across running workers that have reported stats.
+ * Each worker is one Node process, so 100% = one core fully busy.
+ * Returns null when no worker has reported yet.
+ */
+export function getFleetCpu() {
+  const readings = [...workers.values()]
+    .filter(w => w.status === 'running' && w.cpuPercent !== null)
+    .map(w => w.cpuPercent);
+  if (readings.length === 0) return null;
+  return Math.round(readings.reduce((a, b) => a + b, 0) / readings.length);
+}
+
+/**
+ * Get the current CPU utilisation % used for scaling decisions.
+ * Priority: test override → average worker CPU → host CPU.
+ */
+export function getCurrentCpu() {
+  if (testCpuOverride !== null) {
+    cpuSource = 'test-override';
+    lastMeasuredCpu = testCpuOverride;
+    return lastMeasuredCpu;
+  }
+
+  const hostCpu = sampleHostCpu();
+  const fleetCpu = getFleetCpu();
+
+  if (fleetCpu !== null) {
+    cpuSource = 'fleet-avg';
+    lastMeasuredCpu = fleetCpu;
+  } else {
+    cpuSource = 'os.cpus()';
+    lastMeasuredCpu = hostCpu;
+  }
   return lastMeasuredCpu;
 }
 
@@ -115,6 +149,16 @@ function getNextAvailablePort() {
     if (!inUse) return port;
   }
   return null; // all ports in use
+}
+
+/**
+ * Store the latest stats polled from a worker by the traffic monitor.
+ * The first successful poll marks the worker as ready for traffic.
+ */
+export function recordWorkerStats(instanceId, stats) {
+  const w = workers.get(instanceId);
+  if (!w) return;
+  Object.assign(w, stats, { ready: true });
 }
 
 /**
@@ -161,7 +205,12 @@ function startWorker(port) {
       status: 'running',
       pid: child.pid,
       startedAt: new Date().toISOString(),
+      ready: false,          // true after the first successful /stats poll
       requestCount: 0,
+      rpm: 0,
+      cpuPercent: null,
+      avgLatencyMs: null,
+      memoryMb: null,
     };
 
     // Capture stdout
@@ -521,7 +570,7 @@ export function getEngineStatus() {
     scaleOutThreshold: settings.scaleOutThreshold,
     scaleInThreshold: settings.scaleInThreshold,
     cpuUtilization: lastMeasuredCpu,
-    cpuSource: testCpuOverride !== null ? 'test-override' : 'os.cpus()',
+    cpuSource,
     cooldownMs: CONFIG.cooldownMs,
     monitorInterval: CONFIG.monitorInterval,
     consecutiveHits: CONFIG.consecutiveHits,
@@ -544,7 +593,12 @@ export function getWorkerList() {
     status: w.status,
     pid: w.pid,
     startedAt: w.startedAt,
+    ready: w.ready,
     requestCount: w.requestCount,
+    rpm: w.rpm,
+    cpuPercent: w.cpuPercent,
+    avgLatencyMs: w.avgLatencyMs,
+    memoryMb: w.memoryMb,
   }));
 }
 
@@ -607,5 +661,7 @@ export default {
   getWorkerList,
   setTestCpu,
   getActiveWorkerCount,
+  getCurrentCpu,
+  recordWorkerStats,
   stopAllWorkers,
 };

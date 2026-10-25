@@ -1,23 +1,12 @@
 import { GitBranch, ArrowDown } from 'lucide-react';
 
 /**
- * Load Balancing card — now receives instances and total RPM from API.
- * Distributes traffic roughly evenly across instances.
+ * Load Balancing card — shows the REAL requests/min each worker
+ * served, as measured by the backend's traffic monitor.
  */
-export default function LoadBalancingCard({ instances = [], totalRpm = 1240, isConnected = false }) {
-  const list = instances.length > 0 ? instances : [
-    { id: 1, name: 'Instance 1' },
-    { id: 2, name: 'Instance 2' },
-  ];
-
-  // Distribute RPM across instances (roughly even with small variation)
-  const perInstance = list.map((inst, i) => {
-    const base = Math.floor(totalRpm / list.length);
-    const offset = i === 0 ? Math.floor(totalRpm % list.length) : 0;
-    return { ...inst, distributed: base + offset };
-  });
-
-  const source = isConnected ? 'Backend' : 'Offline';
+export default function LoadBalancingCard({ instances = [], totalRpm = 0, isConnected = false }) {
+  const list = instances.filter(inst => inst.status === 'healthy');
+  const source = isConnected ? 'Live' : 'Offline';
 
   return (
     <div className="card">
@@ -26,7 +15,7 @@ export default function LoadBalancingCard({ instances = [], totalRpm = 1240, isC
           <GitBranch size={18} className="card-title-icon" aria-hidden="true" />
           Load Balancing
         </h3>
-        <span className="card-badge demo">{source}</span>
+        <span className={`card-badge ${isConnected ? 'live' : 'demo'}`}>{source}</span>
       </div>
 
       <div className="lb-visual">
@@ -45,13 +34,23 @@ export default function LoadBalancingCard({ instances = [], totalRpm = 1240, isC
 
         {/* Distribution targets */}
         <div className="lb-targets">
-          {perInstance.map((inst) => (
-            <div className="lb-target" key={inst.id}>
-              <div className="lb-target-name">{inst.name}</div>
-              <div className="lb-target-count">{inst.distributed}</div>
-              <div className="lb-target-label">requests</div>
+          {list.length === 0 && (
+            <div className="lb-target">
+              <div className="lb-target-name">No workers</div>
+              <div className="lb-target-label">enable the engine</div>
             </div>
-          ))}
+          )}
+          {list.map((inst) => {
+            const share = totalRpm > 0 ? Math.round(((inst.rpm || 0) / totalRpm) * 100) : 0;
+            return (
+              <div className="lb-target" key={inst.id}>
+                <div className="lb-target-name">:{inst.port}</div>
+                <div className="lb-target-count">{(inst.rpm || 0).toLocaleString()}</div>
+                <div className="lb-target-label">{share}% share</div>
+                <div className="lb-target-label">CPU {inst.cpuPercent ?? '—'}%</div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

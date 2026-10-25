@@ -12,6 +12,7 @@ const TYPE_COLORS = {
   config_update: 'blue',
   info: 'blue',
   health_check: 'green',
+  load_test: 'orange',
   worker_crash: 'red',
   engine_start: 'green',
   engine_stop: 'yellow',

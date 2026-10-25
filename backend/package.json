@@ -1,0 +1,17 @@
+{
+  "name": "vajra-cloud-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vajra Cloud — Express backend with SQLite for the auto-scaling dashboard",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "sql.js": "^1.12.0"
+  }
+}

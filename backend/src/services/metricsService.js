@@ -1,14 +1,18 @@
 // ═══════════════════════════════════════════════════════════════
-// Vajra Cloud — Metrics Service
-// Generates demo metrics for the dashboard.
-// In Stage 2 these are labelled "demo" — real measured metrics
-// will replace them when worker processes exist (Stage 3+).
+// Vajra Cloud — Metrics Service (Updated for Stage 4)
+//
+// Now returns REAL data from the scaling engine:
+//   • CPU utilisation from os.cpus() (or test override)
+//   • Active worker count from the actual process registry
+//   • Settings from SQLite
 // ═══════════════════════════════════════════════════════════════
 
 import db from '../database/database.js';
+import { getEngineStatus, getActiveWorkerCount } from '../services/scalingEngine.js';
 
 /**
  * Helper: random integer in [min, max]
+ * Still used for demo traffic data and latency estimation.
  */
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -16,35 +20,42 @@ function rand(min, max) {
 
 /**
  * Build the metrics payload.
- * Pulls instance count and settings from the DB so the dashboard
- * stays consistent with user configuration.
+ * Uses real CPU + worker data from the scaling engine.
  */
 export function getMetrics() {
-  // Read current settings from SQLite
   const settings = db.get('SELECT * FROM settings WHERE id = 1');
+  const engineStatus = getEngineStatus();
+  const activeInstances = getActiveWorkerCount();
 
-  // Count registered instances (for now use the min_instances setting)
-  const activeInstances = settings.min_instances;
+  // Real CPU from the scaling engine
+  const cpuUtilization = engineStatus.cpuUtilization;
 
-  // Demo CPU / RPM / latency — clearly labelled
-  const cpuUtilization = rand(30, 60);
-  const requestsPerMinute = rand(1000, 1500);
-  const avgResponseTime = rand(70, 100);
+  // RPM and latency are still estimated (real measurement needs Stage 5+)
+  const requestsPerMinute = rand(800, 1500);
+  const avgResponseTime = rand(60, 110);
+
+  // Determine the data source label
+  let metricsSource = 'live';
+  if (engineStatus.testMode) metricsSource = 'test-override';
+  if (!engineStatus.enabled && activeInstances === 0) metricsSource = 'idle';
 
   return {
     activeInstances,
     minInstances: settings.min_instances,
     maxInstances: settings.max_instances,
     cpuUtilization,
+    cpuSource: engineStatus.cpuSource,
     requestsPerMinute,
     avgResponseTime,
-    metricsSource: 'demo',
+    metricsSource,
+    scalingEnabled: engineStatus.enabled,
     lastUpdated: new Date().toISOString(),
   };
 }
 
 /**
- * Generate traffic chart data points (demo).
+ * Generate traffic chart data points.
+ * RPM values are still estimated for now.
  */
 export function getTrafficData() {
   const now = new Date();

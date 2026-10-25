@@ -19,6 +19,9 @@ const VALID_EVENT_TYPES = [
   'health_check',
   'config_update',
   'startup',
+  'worker_crash',
+  'engine_start',
+  'engine_stop',
 ];
 
 /**

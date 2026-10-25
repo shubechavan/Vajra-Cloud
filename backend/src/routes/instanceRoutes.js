@@ -1,48 +1,42 @@
 // ═══════════════════════════════════════════════════════════════
-// Vajra Cloud — Instance Routes
-// GET /api/instances — list registered demo instances
+// Vajra Cloud — Instance Routes (Updated for Stage 4)
+// GET /api/instances — returns REAL worker data from scaling engine
 // ═══════════════════════════════════════════════════════════════
 
 import { Router } from 'express';
-import db from '../database/database.js';
+import { getWorkerList, getActiveWorkerCount } from '../services/scalingEngine.js';
 
 const router = Router();
 
 /**
- * In-memory instance registry.
- * Real instance process management comes in Stage 3+.
- * For now we create entries based on the min_instances setting.
- */
-function getInstances() {
-  const settings = db.get('SELECT * FROM settings WHERE id = 1');
-  const count = settings.min_instances;
-
-  const instances = [];
-  for (let i = 1; i <= count; i++) {
-    instances.push({
-      id: i,
-      name: `Instance ${i}`,
-      port: 5000 + i,
-      status: 'healthy',
-      requestCount: Math.floor(Math.random() * 800) + 200,
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return instances;
-}
-
-/**
  * GET /api/instances
- * Returns the list of demo instances.
+ * Returns the actual list of managed worker processes.
+ * In Stage 4, these are real processes — not demo data.
  */
 router.get('/', (req, res) => {
   try {
-    const instances = getInstances();
+    const workers = getWorkerList();
+    const activeCount = getActiveWorkerCount();
+
+    // Format for frontend compatibility (same shape as Stage 2)
+    const instances = workers.map(w => ({
+      id: w.port - 3000,                       // e.g. port 3001 → id 1
+      name: w.instanceId,                      // e.g. "worker-3001"
+      port: w.port,
+      status: w.status === 'running' ? 'healthy' : w.status,
+      pid: w.pid,
+      requestCount: w.requestCount || 0,
+      startedAt: w.startedAt,
+    }));
+
     res.json({
       success: true,
       data: instances,
-      meta: { source: 'demo' },
+      meta: {
+        source: activeCount > 0 ? 'scaling-engine' : 'none',
+        activeCount,
+        totalTracked: workers.length,
+      },
     });
   } catch (err) {
     console.error('[Instances] Error:', err.message);

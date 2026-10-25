@@ -10,8 +10,13 @@ import ActivityCard from './components/ActivityCard';
 import ServerInstancesCard from './components/ServerInstancesCard';
 import LoadBalancingCard from './components/LoadBalancingCard';
 import AutoScalingCard from './components/AutoScalingCard';
+import ScalingControlCard from './components/ScalingControlCard';
 import ConnectionBanner from './components/ConnectionBanner';
-import PlaceholderPage from './pages/PlaceholderPage';
+import InstancesPage from './pages/InstancesPage';
+import LoadBalancingPage from './pages/LoadBalancingPage';
+import AutoScalingPage from './pages/AutoScalingPage';
+import ActivityPage from './pages/ActivityPage';
+import SettingsPage from './pages/SettingsPage';
 
 import {
   fetchMetrics,
@@ -20,57 +25,56 @@ import {
   fetchEvents,
   fetchSettings,
   fetchHealth,
+  fetchScalingStatus,
 } from './services/api';
 
 // ── Fallback data when backend is unavailable ──
 const FALLBACK_METRICS = {
-  activeInstances: 2,
-  cpuUtilization: 42,
-  requestsPerMinute: 1240,
-  avgResponseTime: 84,
+  activeInstances: 0,
+  cpuUtilization: 0,
+  requestsPerMinute: 0,
+  avgResponseTime: 0,
   metricsSource: 'offline',
 };
 
 const FALLBACK_TRAFFIC = [
-  { time: '06:00', rpm: 800 },
-  { time: '07:00', rpm: 950 },
-  { time: '08:00', rpm: 1100 },
-  { time: '09:00', rpm: 1300 },
-  { time: '10:00', rpm: 1240 },
-  { time: '11:00', rpm: 1100 },
-  { time: '12:00', rpm: 980 },
-  { time: '13:00', rpm: 1050 },
-  { time: '14:00', rpm: 1200 },
+  { time: '06:00', rpm: 0 }, { time: '07:00', rpm: 0 },
+  { time: '08:00', rpm: 0 }, { time: '09:00', rpm: 0 },
+  { time: '10:00', rpm: 0 }, { time: '11:00', rpm: 0 },
+  { time: '12:00', rpm: 0 }, { time: '13:00', rpm: 0 },
+  { time: '14:00', rpm: 0 },
 ];
 
 /**
  * Convert raw API metrics into the card format MetricsRow expects.
  */
 function formatMetrics(raw) {
+  // Choose tooltip text based on source
+  const src = raw.metricsSource || 'offline';
+  const srcLabel =
+    src === 'live'          ? '(live from scaling engine)' :
+    src === 'test-override' ? '(test mode — NOT real CPU)' :
+    src === 'idle'          ? '(engine idle)' :
+                              '(offline fallback)';
+
   return [
     {
       id: 'instances',
-      label: 'Active Instances',
+      label: 'Active Workers',
       value: String(raw.activeInstances),
       icon: 'server',
       color: 'blue',
       trend: 0,
-      tooltip:
-        raw.metricsSource === 'demo'
-          ? 'Number of running server instances (demo data)'
-          : 'Number of running server instances (offline fallback)',
+      tooltip: `Running worker processes ${srcLabel}`,
     },
     {
       id: 'cpu',
       label: 'CPU Utilization',
       value: `${raw.cpuUtilization}%`,
       icon: 'cpu',
-      color: 'green',
-      trend: Math.floor(Math.random() * 10) - 3,
-      tooltip:
-        raw.metricsSource === 'demo'
-          ? 'Simulated CPU usage (demo data from backend)'
-          : 'CPU usage (offline fallback)',
+      color: raw.cpuUtilization > 70 ? 'orange' : 'green',
+      trend: 0,
+      tooltip: `System CPU usage ${srcLabel}`,
     },
     {
       id: 'rpm',
@@ -79,10 +83,7 @@ function formatMetrics(raw) {
       icon: 'activity',
       color: 'yellow',
       trend: Math.floor(Math.random() * 12) + 1,
-      tooltip:
-        raw.metricsSource === 'demo'
-          ? 'Total incoming RPM (demo data from backend)'
-          : 'Requests per minute (offline fallback)',
+      tooltip: `Estimated incoming RPM ${srcLabel}`,
     },
     {
       id: 'latency',
@@ -91,16 +92,13 @@ function formatMetrics(raw) {
       icon: 'clock',
       color: 'orange',
       trend: Math.floor(Math.random() * 6) - 4,
-      tooltip:
-        raw.metricsSource === 'demo'
-          ? 'Mean response latency (demo data from backend)'
-          : 'Response time (offline fallback)',
+      tooltip: `Mean response latency ${srcLabel}`,
     },
   ];
 }
 
 // ── Polling interval in ms ──
-const POLL_INTERVAL = 4000;
+const POLL_INTERVAL = 3000;
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -111,6 +109,7 @@ export default function App() {
   const [instances, setInstances] = useState([]);
   const [events, setEvents] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [scaling, setScaling] = useState(null);
 
   // UI state
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -118,36 +117,36 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [metricsSource, setMetricsSource] = useState('offline');
 
-  // Polling timer ref (for cleanup)
   const pollRef = useRef(null);
 
   /**
    * Fetch all dashboard data from the backend.
    */
   const loadAll = useCallback(async () => {
-    // Check health first
     const health = await fetchHealth();
     const connected = health.success;
     setIsConnected(connected);
 
     if (connected) {
-      // Fetch everything in parallel
-      const [metricsRes, trafficRes, instRes, eventsRes, settingsRes] = await Promise.all([
-        fetchMetrics(),
-        fetchTrafficData(),
-        fetchInstances(),
-        fetchEvents(),
-        fetchSettings(),
-      ]);
+      const [metricsRes, trafficRes, instRes, eventsRes, settingsRes, scalingRes] =
+        await Promise.all([
+          fetchMetrics(),
+          fetchTrafficData(),
+          fetchInstances(),
+          fetchEvents(),
+          fetchSettings(),
+          fetchScalingStatus(),
+        ]);
 
       if (metricsRes.success) {
         setRawMetrics(metricsRes.data);
-        setMetricsSource(metricsRes.data.metricsSource || 'demo');
+        setMetricsSource(metricsRes.data.metricsSource || 'live');
       }
       if (trafficRes.success) setTrafficData(trafficRes.data);
       if (instRes.success) setInstances(instRes.data);
       if (eventsRes.success) setEvents(eventsRes.data);
       if (settingsRes.success) setSettings(settingsRes.data);
+      if (scalingRes.success) setScaling(scalingRes.data);
     } else {
       setMetricsSource('offline');
     }
@@ -158,13 +157,8 @@ export default function App() {
   // Initial load + polling
   useEffect(() => {
     loadAll();
-
-    // Poll every POLL_INTERVAL ms
     pollRef.current = setInterval(loadAll, POLL_INTERVAL);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [loadAll]);
 
   // Manual refresh
@@ -174,15 +168,12 @@ export default function App() {
     setTimeout(() => setIsRefreshing(false), 500);
   }, [loadAll]);
 
-  // Format metrics for the MetricsRow component
   const metrics = formatMetrics(rawMetrics);
-  const cpuValue = rawMetrics.cpuUtilization || 42;
+  const cpuValue = rawMetrics.cpuUtilization || 0;
 
   return (
     <div className="dashboard-shell">
       <Navbar activePage={activePage} onNavigate={setActivePage} />
-
-      {/* Connection status banner */}
       <ConnectionBanner isConnected={isConnected} metricsSource={metricsSource} />
 
       {activePage === 'dashboard' ? (
@@ -202,6 +193,11 @@ export default function App() {
             <ActivityCard events={events} />
           </div>
 
+          {/* Scaling Engine Control (Stage 4) */}
+          <div className="scaling-engine-row">
+            <ScalingControlCard scaling={scaling} onRefresh={handleRefresh} />
+          </div>
+
           {/* Bottom grid: Instances | Load Balancing | Auto-Scaling */}
           <div className="bottom-grid">
             <ServerInstancesCard instances={instances} isConnected={isConnected} />
@@ -218,9 +214,17 @@ export default function App() {
             />
           </div>
         </main>
-      ) : (
-        <PlaceholderPage pageId={activePage} />
-      )}
+      ) : activePage === 'instances' ? (
+        <InstancesPage />
+      ) : activePage === 'loadbalancing' ? (
+        <LoadBalancingPage />
+      ) : activePage === 'autoscaling' ? (
+        <AutoScalingPage />
+      ) : activePage === 'activity' ? (
+        <ActivityPage />
+      ) : activePage === 'settings' ? (
+        <SettingsPage />
+      ) : null}
     </div>
   );
 }

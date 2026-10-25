@@ -87,3 +87,32 @@ export function updateSettings(settings) {
     body: JSON.stringify(settings),
   });
 }
+
+// ── Scaling Engine ──
+
+export function fetchScalingStatus() {
+  return request('/scaling');
+}
+
+export function enableScaling() {
+  return request('/scaling/enable', { method: 'POST' });
+}
+
+export function disableScaling() {
+  return request('/scaling/disable', { method: 'POST' });
+}
+
+export function triggerScaleOut() {
+  return request('/scaling/scale-out', { method: 'POST' });
+}
+
+export function triggerScaleIn() {
+  return request('/scaling/scale-in', { method: 'POST' });
+}
+
+export function setTestCpu(value) {
+  return request('/scaling/test-cpu', {
+    method: 'POST',
+    body: JSON.stringify({ value }),
+  });
+}

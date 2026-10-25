@@ -5,6 +5,12 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Lifecycle hooks don't always inherit the Codespace variables
+# (CODESPACE_NAME, GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN) — load them
+if [ -f /workspaces/.codespaces/shared/.env ]; then
+  set -a; . /workspaces/.codespaces/shared/.env; set +a
+fi
+
 [ -d node_modules ] || npm run install:all
 [ -d frontend/dist ] || npm --prefix frontend run build
 [ -f backend/.env ] || cp backend/.env.example backend/.env

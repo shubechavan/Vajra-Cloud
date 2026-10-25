@@ -52,7 +52,9 @@ const allowedOrigins = [
 
 app.use(express.json());
 
-app.use(cors((req, callback) => {
+// CORS applies to the API only — the dashboard's own JS/CSS must never be
+// blocked (browsers send an Origin header when loading module scripts)
+app.use('/api', cors((req, callback) => {
   const origin = req.headers.origin;
   const host = req.headers['x-forwarded-host'] || req.headers.host;
 
@@ -61,7 +63,8 @@ app.use(cors((req, callback) => {
   const sameOrigin = origin && host && new URL(origin).host === host;
 
   // GitHub Codespaces forwards ports through *.app.github.dev
-  const codespaceDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN;
+  const codespaceDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+    || (process.env.CODESPACES === 'true' ? 'app.github.dev' : null);
   const fromCodespace = origin && codespaceDomain && new URL(origin).host.endsWith(`.${codespaceDomain}`);
 
   if (!origin || sameOrigin || fromCodespace || allowedOrigins.includes(origin)) {
